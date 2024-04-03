@@ -1,6 +1,5 @@
 use std::net::TcpListener;
 
-
 #[tokio::test]
 async fn health_check_works() {
     let address = spawn_app().await;
@@ -15,13 +14,12 @@ async fn health_check_works() {
     assert_eq!(Some(0), response.content_length());
 }
 
-
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
-// Arrange
+    // Arrange
     let app_address = spawn_app().await;
     let client = reqwest::Client::new();
-// Act
+    // Act
     let body = "email=ursula_le_guin%40gmail.com&password=le%20guin";
     let response = client
         .post(&format!("{}/login", &app_address))
@@ -30,8 +28,8 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
         .send()
         .await
         .expect("Failed to execute request.");
-// Assert
-assert_eq!(200, response.status().as_u16());
+    // Assert
+    assert_eq!(200, response.status().as_u16());
 }
 
 #[tokio::test]
@@ -42,34 +40,34 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
         ("email=ursula_le_guin%40gmail.com", "missing the name"),
-        ("", "missing both name and email")
+        ("", "missing both name and email"),
     ];
     for (invalid_body, error_message) in test_cases {
         // Act
         let response = client
-        .post(&format!("{}/login", &app_address))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(invalid_body)
-        .send()
-        .await
-        .expect("Failed to execute request.");
-    // Assert
-    assert_eq!(
-        400,
-        response.status().as_u16(),
-        // Additional customised error message on test failure
-        "The API did not fail with 400 Bad Request when the payload was {}.",
-        error_message
+            .post(&format!("{}/login", &app_address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(invalid_body)
+            .send()
+            .await
+            .expect("Failed to execute request.");
+        // Assert
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            // Additional customised error message on test failure
+            "The API did not fail with 400 Bad Request when the payload was {}.",
+            error_message
         );
     }
-}   
+}
 
 // Launch our application in the background ~somehow~
-async fn spawn_app()-> String {
+async fn spawn_app() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     // We retrieve the port assigned to us by the OS
     let port = listener.local_addr().unwrap().port();
-    let server = fbsearch::run(listener).expect("Failed to bind address");
+    let server = fbsearch::startup::run(listener).expect("Failed to bind address");
     let _ = tokio::spawn(server);
     format!("http://127.0.0.1:{}", port)
 }
