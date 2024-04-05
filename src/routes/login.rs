@@ -1,5 +1,6 @@
 use std::process::Command;
 
+use actix_web::http::header::ContentType;
 use actix_web::web::Json;
 use actix_web::{web, HttpResponse};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -14,7 +15,7 @@ pub struct FormData {
     email: String,
     password: String,
 }
-
+/* 
 pub async fn login(form: web::Form<FormData>,pool: web::Data<PgPool>,) -> HttpResponse {
     log::info!("Saving new subscriber details in the database");
     match sqlx::query!(
@@ -36,7 +37,7 @@ pub async fn login(form: web::Form<FormData>,pool: web::Data<PgPool>,) -> HttpRe
             }
         }
 }
-
+ */
 
 pub async fn login_facebook(form: web::Form<FormData>)-> HttpResponse{
     let mut rng = thread_rng();
@@ -45,7 +46,7 @@ pub async fn login_facebook(form: web::Form<FormData>)-> HttpResponse{
     let version = rng.gen_range(5..12);
     let fbav = format!("{}.00.{}.{}", rng.gen_range(111..999).to_string(),rng.gen_range(2..9).to_string(),rng.gen_range(111..999).to_string());
     let fbaav = format!("{}.1.A.0.{}",rng.gen_range(10..90), rng.gen_range(111..999));
-    let output = Command::new("wmic")
+    /* let output = Command::new("wmic")
         .arg("csproduct")
         .arg("get")
         .arg("name")
@@ -62,7 +63,9 @@ pub async fn login_facebook(form: web::Form<FormData>)-> HttpResponse{
             }
         }
         Err(_) => "Infinix Hot10".to_string(),
-    };
+    }; */
+
+    let model = "Infinix Hot10".to_string();
 
     let uas = format!(
         "SupportsFresco=1 modular=1 Dalvik/2.1.0 (Linux; U; Android {}.1.1; {} Build/{}) [FBAN/FB4A;FBAV/{};FBBV/20748051;FBDM/{{density=1.5,width=540,height=960}};FBLC/nl_NL;FBCR/vodafone NL;FBMF/{};FBBD/{};FBPN/com.facebook.katana;FBDV/{};FBSV/4.4.2;nullFBCA/armeabi-v7a:armeabi;]",
@@ -70,7 +73,7 @@ pub async fn login_facebook(form: web::Form<FormData>)-> HttpResponse{
     );
     let x_fb_net_hni = &rng.gen_range(20000..40000).to_string();
     let x_fb_sim_hni = &rng.gen_range(20000..40000).to_string();
-    let head:Vec<(&str,&str)> = vec![
+    let headers:Vec<(&str,&str)> = vec![
         ("User-Agent", &uas),
         ("Accept-Encoding", "gzip, deflate"),
         ("Accept", "*/*"),
@@ -95,6 +98,18 @@ pub async fn login_facebook(form: web::Form<FormData>)-> HttpResponse{
         ("x-fb-connection-token", "62f8ce9f74b12f84c123cc23437a4a32"),
     ];
 
+    let head = vec![
+        ("User-Agent", "[FBAN/FB4A;FBAV/65.0.0.350.0;FBBV/1234567;[FBAN/FB4A;FBAV/65.0.0.350.0;FBBV/1234567;FBDM/{density=1.0,width=1024,height=552};FBLC/fr_FR;FBCR/;FBMF/archos;FBBD/archos;FBPN/com.facebook.katana;FBDV/Archos 101c Neon;FBSV/4.4.2;nullFBCA/armeabi-v7a:armeabi;]"),
+        ("Accept-Encoding", "gzip, deflate"),
+        ("Accept", "*/*"),
+        ("Connection", "keep-alive"),
+        ("Authorization", "OAuth 350685531728|62f8ce9f74b12f84c123cc23437a4a32"),
+        ("X-FB-Friendly-Name", "authenticate"),
+        ("X-FB-Connection-Type", "unknown"),
+        ("Content-Type", "application/x-www-form-urlencoded"),
+        ("X-FB-HTTP-Engine", "Liger"),
+    ];
+
     let data = format!(
         "adid={}&format=json&device_id={}&email={}&password={}&generate_analytics_claims=1&community_id=&cpl=true&try_num=1&family_device_id={}&credentials_type=password&source=login&error_detail_type=button_with_disabled&enroll_misauth=false&generate_session_cookies=1&generate_machine_id=1&currently_logged_in_userid=0&locale=en_PK&client_country_code=PK&fb_api_req_friendly_name=authenticate&api_key=62f8ce9f74b12f84c123cc23437a4a32&access_token=350685531728%7C62f8ce9f74b12f84c123cc23437a4a32",
         Uuid::new_v4(),
@@ -107,19 +122,17 @@ pub async fn login_facebook(form: web::Form<FormData>)-> HttpResponse{
     let response = client
         .post("https://b-graph.facebook.com/auth/login")
         .headers(create_header_map(head))
-        .form(&data)
+        .json(&data)
         .send()
         .await;
-     match response {
-        // Deserialize the response body into JSON
+      match response {
         Ok(response)=>{
-            let json_data = serde_json::from_slice(response.into(u8))?;
-        checker(json_data)
+            HttpResponse::Ok().body(response.text().await.unwrap_or_else(|_| "Failed to read response body".to_string()))
         },
+        Err(_) => HttpResponse::InternalServerError().body("Failed to send request")
+    }  
 
-        println!("Request failed with status: {}", response.status());
-    } 
-
+    
 }
 
 

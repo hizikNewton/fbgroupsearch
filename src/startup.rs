@@ -3,7 +3,7 @@ use actix_web::middleware::Logger;
 use sqlx::PgPool;
 use std::net::TcpListener;
 
-use crate::routes::{health_check, login,login_facebook};
+use crate::routes::{health_check,login_facebook};
 
 pub fn run(listener: TcpListener) -> Result<Server, std::io::Error> {
    
@@ -11,9 +11,10 @@ pub fn run(listener: TcpListener) -> Result<Server, std::io::Error> {
         App::new()
             .wrap(Logger::default())
             .route("/health_check", web::get().to(health_check))
-            .route("/login", web::post().to(login))
-            .route("/fb_check", web::post().to(login_facebook))
-            /* .app_data(db_pool.clone()) */
+           
+            .route("/fb_check", web::post().to(login_facebook)) 
+             /* .route("/login", web::post().to(login))
+           .app_data(db_pool.clone()) */
     })
     .listen(listener)?
     .run();
