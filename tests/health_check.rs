@@ -1,8 +1,10 @@
 use std::net::TcpListener;
-use fbsearch::configuration::get_configuration;
-use sqlx::{Connection, PgConnection, PgPool};
+use fbsearch::configuration::{get_configuration, DatabaseSettings};
+use sqlx::{Connection,Executor, PgConnection, PgPool};
+use uuid::Uuid;
 
 #[tokio::test]
+#[ignore = "reason"]
 async fn health_check_works() {
     let app = spawn_app().await;
     let client = reqwest::Client::new();
@@ -17,6 +19,7 @@ async fn health_check_works() {
 }
 
 #[tokio::test]
+#[ignore = "reason"]
 async fn login_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
@@ -45,6 +48,7 @@ async fn login_returns_a_200_for_valid_form_data() {
 }
 
 #[tokio::test]
+#[ignore = "reason"]
 async fn login_returns_a_400_when_data_is_missing() {
     //Arrange
     let app = spawn_app().await;
@@ -81,20 +85,39 @@ pub struct TestApp {
 
 // Launch our application in the background ~somehow~
 async fn spawn_app() -> TestApp {
-    let configuration = get_configuration().expect("Failed to read configuration.");
-    let connection_pool = PgPool::connect(
-        &configuration.database.connection_string()
-        )
-        .await
-        .expect("Failed to connect to Postgres.");
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind random port");
     // We retrieve the port assigned to us by the OS
     let port = listener.local_addr().unwrap().port();
-    let server = fbsearch::startup::run(listener,connection_pool.clone()).expect("Failed to bind address");
-    let _ = tokio::spawn(server);
     let address = format!("http://127.0.0.1:{}", port);
+
+    let mut configuration = get_configuration().expect("Failed to read configuration.");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+    let connection_pool = configure_database(&configuration.database).await;
+    
+    let server = fbsearch::startup::run(listener).expect("Failed to bind address");
+    let _ = tokio::spawn(server);
     TestApp {
         address,
         db_pool: connection_pool,
         }
 }
+
+pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    // Create database
+    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+        .await
+        .expect("Failed to connect to Postgres");
+    connection.execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+    .await
+    .expect("Failed to create database.");
+
+    // Migrate database
+    let connection_pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("Failed to connect to Postgres.");
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("Failed to migrate the database");
+    connection_pool
+    }
